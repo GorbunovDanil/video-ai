@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import clsx from "clsx";
 import {
   GalleryVerticalEndIcon,
   ImageIcon,
-  LogInIcon,
+  LogOutIcon,
   PlayIcon,
   SettingsIcon,
   SparklesIcon,
@@ -18,12 +19,15 @@ const items = [
   { href: "/video-ad", label: "Video Ad", icon: PlayIcon },
   { href: "/gallery", label: "Gallery", icon: GalleryVerticalEndIcon },
   { href: "/account", label: "Account", icon: SettingsIcon },
-  { href: "/auth", label: "Auth", icon: LogInIcon },
   { href: "/pricing", label: "Pricing", icon: TagsIcon },
 ];
 
 export function DashboardNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const credits = session?.user?.credits ?? 0;
+  const planValue = session?.user?.plan ?? "STARTER";
+  const planLabel = planValue === "PRO" ? "Pro" : "Starter";
 
   return (
     <aside className="flex flex-col gap-6 rounded-3xl border border-slate-800 bg-slate-950/60 p-6">
@@ -58,18 +62,20 @@ export function DashboardNav() {
           );
         })}
       </nav>
-      <div className="rounded-2xl border border-dashed border-brand-500/60 bg-brand-500/10 p-4 text-sm text-brand-100">
-        <p className="font-semibold">Need inspiration?</p>
-        <p className="mt-1 text-xs">
-          Explore curated prompts, campaign blueprints, and channel best practices to keep
-          your creative pipeline flowing.
-        </p>
-        <Link
-          href="/gallery"
-          className="mt-3 inline-flex items-center justify-center rounded-xl border border-brand-500/80 bg-brand-500/20 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-brand-100 transition hover:bg-brand-500/30"
+      <div className="space-y-4 rounded-2xl border border-dashed border-brand-500/60 bg-brand-500/10 p-4 text-sm text-brand-100">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-brand-200">Plan</p>
+          <p className="mt-1 text-base font-semibold">{planLabel}</p>
+          <p className="mt-2 text-xs text-brand-100/80">{credits.toLocaleString()} credits available</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void signOut({ callbackUrl: "/" })}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-500/80 bg-brand-500/20 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-brand-100 transition hover:bg-brand-500/30"
         >
-          Browse gallery
-        </Link>
+          <LogOutIcon className="h-3.5 w-3.5" />
+          Sign out
+        </button>
       </div>
     </aside>
   );
