@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { PauseIcon, PlayIcon, RotateCwIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
 
 export function VideoPlayer({
@@ -17,6 +17,19 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    
+    return () => {
+      if (video) {
+        video.pause();
+        video.src = '';
+        video.load();
+        setIsPlaying(false);
+      }
+    };
+  }, [src]);
 
   const togglePlay = () => {
     const video = videoRef.current;

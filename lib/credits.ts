@@ -42,23 +42,29 @@ export async function reserveRenderCredits(options: CreditReservationOptions) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { id: options.userId },
-        select: { credits: true },
-      });
-
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      if (user.credits < amount) {
-        throw new InsufficientCreditsError();
-      }
-
-      await tx.user.update({
-        where: { id: options.userId },
+      // FIXED: Atomic check-and-update prevents race condition
+      const result = await tx.user.updateMany({
+        where: {
+          id: options.userId,
+          credits: { gte: amount },
+        },
         data: { credits: { decrement: amount } },
       });
+
+      if (result.count === 0) {
+        const user = await tx.user.findUnique({
+          where: { id: options.userId },
+          select: { credits: true },
+        });
+
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        throw new InsufficientCreditsError(
+          `Insufficient credits: ${user.credits} available, ${amount} required`
+        );
+      }
 
       await tx.render.update({
         where: { id: options.renderId },
@@ -75,7 +81,7 @@ export async function reserveRenderCredits(options: CreditReservationOptions) {
           type: CreditTransactionType.DEBIT,
           reason: options.reason,
           renderId: options.renderId,
-          metadata: options.metadata ?? undefined,
+          metadata: (options.metadata ?? undefined) as any,
         },
       });
 
@@ -130,10 +136,19 @@ export async function adjustRenderReservation(options: ReservationAdjustmentOpti
     }
 
     if (delta > 0) {
-      await tx.user.update({
-        where: { id: options.userId },
+      const result = await tx.user.updateMany({
+        where: {
+          id: options.userId,
+          credits: { gte: delta },
+        },
         data: { credits: { decrement: delta } },
       });
+
+      if (result.count === 0) {
+        throw new InsufficientCreditsError(
+          `Insufficient credits for reservation adjustment: ${delta} required`
+        );
+      }
 
       await tx.creditTransaction.create({
         data: {
@@ -142,7 +157,7 @@ export async function adjustRenderReservation(options: ReservationAdjustmentOpti
           type: CreditTransactionType.DEBIT,
           reason: options.reason,
           renderId: options.renderId,
-          metadata: options.metadata ?? undefined,
+          metadata: (options.metadata ?? undefined) as any,
         },
       });
 
@@ -170,7 +185,7 @@ export async function adjustRenderReservation(options: ReservationAdjustmentOpti
           type: CreditTransactionType.CREDIT,
           reason: options.reason,
           renderId: options.renderId,
-          metadata: options.metadata ?? undefined,
+          metadata: (options.metadata ?? undefined) as any,
         },
       });
 
@@ -221,10 +236,19 @@ export async function finalizeRenderCharge(options: FinalizeOptions) {
     const delta = finalAmount - render.reservedCredits;
 
     if (delta > 0) {
-      await tx.user.update({
-        where: { id: options.userId },
+      const result = await tx.user.updateMany({
+        where: {
+          id: options.userId,
+          credits: { gte: delta },
+        },
         data: { credits: { decrement: delta } },
       });
+
+      if (result.count === 0) {
+        throw new InsufficientCreditsError(
+          `Insufficient credits for final charge: ${delta} required`
+        );
+      }
 
       await tx.creditTransaction.create({
         data: {
@@ -233,7 +257,7 @@ export async function finalizeRenderCharge(options: FinalizeOptions) {
           type: CreditTransactionType.DEBIT,
           reason: options.reason,
           renderId: options.renderId,
-          metadata: options.metadata ?? undefined,
+          metadata: (options.metadata ?? undefined) as any,
         },
       });
     } else if (delta < 0) {
@@ -250,7 +274,7 @@ export async function finalizeRenderCharge(options: FinalizeOptions) {
           type: CreditTransactionType.CREDIT,
           reason: options.reason,
           renderId: options.renderId,
-          metadata: options.metadata ?? undefined,
+          metadata: (options.metadata ?? undefined) as any,
         },
       });
     }
@@ -316,7 +340,7 @@ export async function releaseRenderCredits(options: ReleaseOptions) {
         type: CreditTransactionType.CREDIT,
         reason: options.reason,
         renderId: options.renderId,
-        metadata: options.metadata ?? undefined,
+        metadata: (options.metadata ?? undefined) as any,
       },
     });
 
@@ -358,7 +382,7 @@ export async function grantCredits(options: PurchaseOptions) {
         amount,
         type: CreditTransactionType.CREDIT,
         reason: options.reason,
-        metadata: options.metadata ?? undefined,
+        metadata: (options.metadata ?? undefined) as any,
       },
     });
 
