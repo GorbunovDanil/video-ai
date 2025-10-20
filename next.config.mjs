@@ -1,7 +1,6 @@
-import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

@@ -54,12 +54,15 @@ model User {
   brandKits  BrandKit[]
   accounts   Account[]
   sessions   Session[]
+  renders    Render[]
   credits    Float     @default(50)
   plan       PlanTier  @default(STARTER)
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?
   creditTransactions   CreditTransaction[]
   usageLogs            UsageLog[]
+
+  @@index([email])
 }
 
 model Project {
@@ -72,6 +75,8 @@ model Project {
   userId      String
   renders     Render[]
   brandKit    BrandKit?
+
+  @@index([userId, createdAt])
 }
 
 model BrandKit {
@@ -88,6 +93,8 @@ model BrandKit {
   typography        Json?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 model Render {
@@ -114,6 +121,11 @@ model Render {
   usageLogs      UsageLog[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([projectId, status])
+  @@index([providerJobId])
+  @@index([status, createdAt])
 }
 
 model CreditTransaction {
@@ -127,6 +139,9 @@ model CreditTransaction {
   renderId  String?
   metadata  Json?
   createdAt DateTime               @default(now())
+
+  @@index([userId, createdAt])
+  @@index([renderId])
 }
 
 model UsageLog {
@@ -138,6 +153,9 @@ model UsageLog {
   renderId  String?
   metadata  Json?
   createdAt DateTime       @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }
 
 model Account {
@@ -156,6 +174,8 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  
+  @@index([userId])
 }
 
 model Session {
@@ -164,6 +184,9 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+
 }
 
 model VerificationToken {

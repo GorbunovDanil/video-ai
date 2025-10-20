@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { UsageEventType } from "@prisma/client";
+import { createHmac, timingSafeEqual } from "crypto";
 
 import {
   CREDIT_RESERVES,
@@ -17,25 +18,101 @@ const statusMap: Record<string, "PROCESSING" | "SUCCEEDED" | "FAILED"> = {
   failed: "FAILED",
 };
 
-export async function POST(request: Request) {
-  const secret = process.env.VEO_WEBHOOK_SECRET;
-  if (secret) {
-    const signature = request.headers.get("x-webhook-secret");
-    if (signature !== secret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): boolean {
+  try {
+    const expectedSignature = createHmac("sha256", secret)
+      .update(payload)
+      .digest("hex");
+
+    const signatureBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSignature);
+
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return false;
     }
+
+    return timingSafeEqual(signatureBuffer, expectedBuffer);
+  } catch (error) {
+    console.error("Error verifying webhook signature:", error);
+    return false;
+  }
+}
+
+function verifyWebhookTimestamp(timestamp: string | null): boolean {
+  if (!timestamp) {
+    return false;
   }
 
-  const body = await request.json().catch(() => null);
+  try {
+    const webhookTime = new Date(timestamp).getTime();
+    const currentTime = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
 
-  if (!body) {
+    return Math.abs(currentTime - webhookTime) < fiveMinutes;
+  } catch {
+    return false;
+  }
+}
+
+export async function POST(request: Request) {
+  const secret = process.env.VEO_WEBHOOK_SECRET;
+
+  if (!secret) {
+    console.error("VEO_WEBHOOK_SECRET is not configured");
+    return NextResponse.json(
+      { error: "Webhook secret not configured" },
+      { status: 500 }
+    );
+  }
+
+  const rawBody = await request.text();
+  const signature = request.headers.get("x-webhook-signature");
+  const timestamp = request.headers.get("x-webhook-timestamp");
+
+  if (!signature || !verifyWebhookSignature(rawBody, signature, secret)) {
+    console.warn("Invalid webhook signature received");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  if (!verifyWebhookTimestamp(timestamp)) {
+    console.warn("Webhook timestamp verification failed");
+    return NextResponse.json(
+      { error: "Invalid or expired timestamp" },
+      { status: 401 }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
 
-  const { jobId, renderId, status, assetUrl, watermarkUrl, costInCredits, usageMetadata, error } = body;
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  const {
+    jobId,
+    renderId,
+    status,
+    assetUrl,
+    watermarkUrl,
+    costInCredits,
+    usageMetadata,
+    error,
+  } = body as Record<string, unknown>;
 
   if ((!jobId && !renderId) || !status) {
-    return NextResponse.json({ error: "jobId/renderId and status are required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "jobId/renderId and status are required" },
+      { status: 400 }
+    );
   }
 
   const prismaStatus = statusMap[String(status).toLowerCase()];
@@ -44,10 +121,10 @@ export async function POST(request: Request) {
   }
 
   const conditions = [] as Array<{ id?: string; providerJobId?: string }>;
-  if (renderId) {
+  if (typeof renderId === "string") {
     conditions.push({ id: renderId });
   }
-  if (jobId) {
+  if (typeof jobId === "string") {
     conditions.push({ providerJobId: jobId });
   }
 
@@ -74,11 +151,11 @@ export async function POST(request: Request) {
     where: { id: render.id },
     data: {
       status: prismaStatus,
-      outputAssetUrl: assetUrl ?? undefined,
-      watermarkUrl: watermarkUrl ?? undefined,
-      costInCredits: costInCredits ?? undefined,
+      outputAssetUrl: typeof assetUrl === "string" ? assetUrl : undefined,
+      watermarkUrl: typeof watermarkUrl === "string" ? watermarkUrl : undefined,
+      costInCredits: typeof costInCredits === "number" ? costInCredits : undefined,
       usageMetadata: usageMetadata ?? undefined,
-      error: error ?? null,
+      error: typeof error === "string" ? error : null,
     },
   });
 
@@ -91,7 +168,9 @@ export async function POST(request: Request) {
         : CREDIT_RESERVES.image;
 
     const finalCost =
-      typeof costInCredits === "number" ? costInCredits : render.costInCredits ?? render.reservedCredits ?? fallback;
+      typeof costInCredits === "number"
+        ? costInCredits
+        : render.costInCredits ?? render.reservedCredits ?? fallback;
 
     await finalizeRenderCharge({
       userId: render.userId,
@@ -132,7 +211,7 @@ export async function POST(request: Request) {
       {
         projectId: render.projectId,
         type: render.type,
-        error: error ?? "Render failed",
+        error: typeof error === "string" ? error : "Render failed",
         jobId,
       },
       { renderId: render.id }

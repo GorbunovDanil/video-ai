@@ -1,8 +1,8 @@
-import type { Prisma, UsageEventType } from "@prisma/client";
+import { Prisma, UsageEventType } from "@prisma/client";
 
 import prisma from "./prisma";
 
-type PrismaLikeClient = Prisma.PrismaClient | Prisma.TransactionClient;
+type PrismaLikeClient = Prisma.TransactionClient | typeof prisma;
 
 interface UsageLogOptions {
   renderId?: string;
@@ -22,7 +22,7 @@ export async function logUsageEvent(
       userId,
       type,
       renderId: options.renderId,
-      metadata: metadata ?? undefined,
+      metadata: metadata as any,
     },
   });
 }

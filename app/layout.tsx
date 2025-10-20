@@ -12,17 +12,17 @@ export const metadata: Metadata = {
     "Generate on-brand image and video ads with reusable templates and export presets.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const sessionPromise = getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased">
-        <Providers session={await sessionPromise}>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
       </body>
     </html>
   );
