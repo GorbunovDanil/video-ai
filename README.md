@@ -53,3 +53,23 @@ A Next.js dashboard that helps marketers and founders quickly generate platform-
 - [OpenAI Sora Updates](https://openai.com/sora)
 
 Stay focused on fast, high-quality ad outputs, iterate on template quality, and grow through performance-minded creators and agencies.
+
+## Configuration
+
+Set the following environment variables before running the app:
+
+- **Authentication**
+  - `NEXTAUTH_SECRET` – session encryption key.
+  - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` – Google OAuth credentials (optional).
+  - `EMAIL_SERVER_HOST`, `EMAIL_SERVER_PORT`, `EMAIL_SERVER_USER`, `EMAIL_SERVER_PASSWORD`, `EMAIL_FROM` – SMTP settings for magic links.
+- **Credits & Providers**
+  - `CREDIT_RESERVE_IMAGE`, `CREDIT_RESERVE_VIDEO_PREVIEW`, `CREDIT_RESERVE_VIDEO_FINAL` – minimum credits reserved per render (defaults to 1/3/6).
+- **Stripe Billing**
+  - `STRIPE_API_KEY` – secret API key.
+  - `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_VIDEO_CREDITS` – price IDs for Starter, Pro, and credit packs.
+  - `STRIPE_CREDIT_PACKAGE_SIZE` – number of credits granted per one-off purchase (default 20).
+  - `STRIPE_WEBHOOK_SECRET` – signing secret for `/api/stripe/webhook`.
+- **Observability**
+  - `SENTRY_DSN` plus optional sampling overrides `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`, `SENTRY_REPLAYS_SESSION_SAMPLE_RATE`.
+
+The Stripe webhook endpoint should be configured at `/api/stripe/webhook`. Veo callback requests must include `x-webhook-secret` matching `VEO_WEBHOOK_SECRET`.

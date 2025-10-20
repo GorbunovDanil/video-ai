@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+import { getServerSession } from "next-auth";
+
+import { authOptions } from "@/lib/auth";
+
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,10 +17,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const sessionPromise = getServerSession(authOptions);
+
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased">
-        {children}
+        <Providers session={await sessionPromise}>{children}</Providers>
       </body>
     </html>
   );
