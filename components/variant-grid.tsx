@@ -10,6 +10,7 @@ export type Variant = {
   description: string;
   type?: "image" | "video";
   aspect?: string;
+  url?: string;
 };
 
 const fallbackVariants: Variant[] = Array.from({ length: 6 }).map((_, index) => ({
@@ -25,11 +26,13 @@ export function VariantGrid({
   onSelect,
   selectedId,
   enablePlayback = false,
+  onDownload,
 }: {
   variants?: Variant[];
   onSelect?: (variant: Variant) => void;
   selectedId?: string;
   enablePlayback?: boolean;
+  onDownload?: (variant: Variant) => void;
 }) {
   const [activeId, setActiveId] = useState<string>(selectedId ?? variants[0]?.id ?? "");
 
@@ -43,6 +46,31 @@ export function VariantGrid({
     onSelect?.(variant);
   };
 
+  const handleDownload = async () => {
+    if (!activeVariant?.url) return;
+
+    if (onDownload) {
+      onDownload(activeVariant);
+      return;
+    }
+
+    // Default download behavior
+    try {
+      const response = await fetch(activeVariant.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activeVariant.title.replace(/\s+/g, "-").toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -52,13 +80,14 @@ export function VariantGrid({
             Compare outputs and mark the best options for exporting.
           </p>
         </div>
-        {activeVariant ? (
+        {activeVariant?.url ? (
           <button
             type="button"
+            onClick={handleDownload}
             className="inline-flex items-center gap-2 rounded-full border border-brand-500/60 bg-brand-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-brand-100 transition hover:bg-brand-500/20"
           >
             <DownloadIcon className="h-4 w-4" />
-            Export selection
+            Download selection
           </button>
         ) : null}
       </div>
@@ -76,12 +105,23 @@ export function VariantGrid({
             )}
           >
             <div className="relative flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
-              <span className="text-sm text-slate-400">{variant.aspect ?? "4:5"}</span>
-              {enablePlayback && variant.type === "video" ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-slate-950/50 opacity-0 transition group-hover:opacity-100">
-                  <PlayIcon className="h-10 w-10 text-white" />
-                </span>
-              ) : null}
+              {variant.url ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={variant.url}
+                    alt={variant.title}
+                    className="h-full w-full object-cover"
+                  />
+                  {enablePlayback && variant.type === "video" && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-slate-950/50 opacity-0 transition group-hover:opacity-100">
+                      <PlayIcon className="h-10 w-10 text-white" />
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-sm text-slate-400">{variant.aspect ?? "4:5"}</span>
+              )}
             </div>
             <div className="mt-4 space-y-1">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-200">
