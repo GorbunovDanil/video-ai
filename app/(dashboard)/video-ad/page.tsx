@@ -9,12 +9,7 @@ import { ExportPresetSelector } from "@/components/export-preset-selector";
 import { PromptTemplates, type PromptTemplate } from "@/components/prompt-templates";
 import { VariantGrid } from "@/components/variant-grid";
 import { VideoPlayer } from "@/components/media/video-player";
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-};
+import { useProject } from "@/contexts/project-context";
 
 type RenderStatus = "QUEUED" | "PROCESSING" | "SUCCEEDED" | "FAILED";
 
@@ -30,7 +25,7 @@ type VideoRender = {
 
 export default function VideoAdPage() {
   const { data: session, update: updateSession } = useSession();
-  const [project, setProject] = useState<Project | null>(null);
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [briefValues, setBriefValues] = useState<CreativeBriefValues | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
@@ -38,23 +33,8 @@ export default function VideoAdPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewRender, setPreviewRender] = useState<VideoRender | null>(null);
   const [finalRender, setFinalRender] = useState<VideoRender | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Fetch default project on mount
-  useEffect(() => {
-    async function loadProject() {
-      try {
-        const response = await fetch("/api/projects/default");
-        if (!response.ok) throw new Error("Failed to load project");
-        const data = await response.json();
-        setProject(data.project);
-      } catch (err) {
-        setError("Failed to load project. Please refresh the page.");
-        console.error(err);
-      }
-    }
-    loadProject();
-  }, []);
 
   // Poll for render status
   const pollRenderStatus = async (renderId: string, type: "preview" | "final") => {
@@ -123,7 +103,7 @@ export default function VideoAdPage() {
   }, [previewRender?.renderId, finalRender?.renderId, previewRender?.status, finalRender?.status]);
 
   const handleGeneratePreview = async () => {
-    if (!project || !selectedTemplate || !briefValues) {
+    if (!currentProject || !selectedTemplate || !briefValues) {
       setError("Please fill out the video brief and select a template");
       return;
     }
@@ -149,7 +129,7 @@ Brand Context:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: currentProject.id,
           prompt: enhancedPrompt,
           quality: "fast",
           brandSettings: {
@@ -185,7 +165,7 @@ Brand Context:
   };
 
   const handleGenerateFinal = async () => {
-    if (!project || !selectedTemplate || !briefValues || !previewRender) {
+    if (!currentProject || !selectedTemplate || !briefValues || !previewRender) {
       setError("Please generate a preview first");
       return;
     }
@@ -211,7 +191,7 @@ Brand Context:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: currentProject.id,
           prompt: enhancedPrompt,
           quality: "standard",
           previewRenderId: previewRender.renderId,
@@ -296,7 +276,7 @@ Brand Context:
         <button
           type="button"
           onClick={handleGeneratePreview}
-          disabled={isGeneratingPreview || !project || !selectedTemplate || !briefValues || (previewRender?.status === "PROCESSING" || previewRender?.status === "QUEUED")}
+          disabled={isGeneratingPreview || !currentProject || !selectedTemplate || !briefValues || projectLoading || (previewRender?.status === "PROCESSING" || previewRender?.status === "QUEUED")}
           className="inline-flex items-center gap-3 rounded-full border border-brand-500 bg-brand-500 px-8 py-4 text-base font-semibold uppercase tracking-wide text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isGeneratingPreview || previewRender?.status === "PROCESSING" || previewRender?.status === "QUEUED" ? (
@@ -428,14 +408,22 @@ Brand Context:
                   }]
                 : []),
             ]}
+            selectedId={selectedVariantId || undefined}
+            onSelect={(variant) => setSelectedVariantId(variant.id)}
             enablePlayback
           />
-          <ExportPresetSelector />
+          <ExportPresetSelector
+            selectedVariant={selectedVariantId ? {
+              id: selectedVariantId,
+              url: previewRender?.renderId === selectedVariantId ? previewRender.outputAssetUrl : finalRender?.outputAssetUrl,
+              type: "video",
+            } : undefined}
+          />
         </>
       )}
 
       {/* Loading Project State */}
-      {!project && !error && (
+      {projectLoading && !error && (
         <div className="flex items-center justify-center py-12">
           <Loader2Icon className="h-6 w-6 animate-spin text-slate-400" />
         </div>

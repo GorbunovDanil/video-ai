@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
 
@@ -8,12 +8,7 @@ import { CreativeBriefForm, type CreativeBriefValues } from "@/components/forms/
 import { ExportPresetSelector } from "@/components/export-preset-selector";
 import { PromptTemplates, type PromptTemplate } from "@/components/prompt-templates";
 import { VariantGrid, type Variant } from "@/components/variant-grid";
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-};
+import { useProject } from "@/contexts/project-context";
 
 type GeneratedImage = {
   renderId: string;
@@ -24,31 +19,16 @@ type GeneratedImage = {
 
 export default function ImageAdPage() {
   const { data: session, update: updateSession } = useSession();
-  const [project, setProject] = useState<Project | null>(null);
+  const { currentProject, isLoading: projectLoading } = useProject();
   const [briefValues, setBriefValues] = useState<CreativeBriefValues | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
-
-  // Fetch default project on mount
-  useEffect(() => {
-    async function loadProject() {
-      try {
-        const response = await fetch("/api/projects/default");
-        if (!response.ok) throw new Error("Failed to load project");
-        const data = await response.json();
-        setProject(data.project);
-      } catch (err) {
-        setError("Failed to load project. Please refresh the page.");
-        console.error(err);
-      }
-    }
-    loadProject();
-  }, []);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   const handleGenerate = async () => {
-    if (!project || !selectedTemplate || !briefValues) {
+    if (!currentProject || !selectedTemplate || !briefValues) {
       setError("Please fill out the creative brief and select a template");
       return;
     }
@@ -76,7 +56,7 @@ Brand Context:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: currentProject.id,
           prompt: enhancedPrompt,
           brandSettings: {
             primaryColor: briefValues.brandColors[0],
@@ -121,6 +101,11 @@ Brand Context:
     url: img.signedUrl,
   }));
 
+  // Get selected variant
+  const selectedVariant = selectedVariantId
+    ? variants.find(v => v.id === selectedVariantId)
+    : null;
+
   return (
     <main className="space-y-8">
       <header className="space-y-3">
@@ -141,7 +126,7 @@ Brand Context:
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={isGenerating || !project || !selectedTemplate || !briefValues}
+          disabled={isGenerating || !currentProject || !selectedTemplate || !briefValues || projectLoading}
           className="inline-flex items-center gap-3 rounded-full border border-brand-500 bg-brand-500 px-8 py-4 text-base font-semibold uppercase tracking-wide text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isGenerating ? (
@@ -168,13 +153,23 @@ Brand Context:
       {/* Generated Images */}
       {variants.length > 0 && (
         <>
-          <VariantGrid variants={variants} />
-          <ExportPresetSelector />
+          <VariantGrid
+            variants={variants}
+            selectedId={selectedVariantId || undefined}
+            onSelect={(variant) => setSelectedVariantId(variant.id)}
+          />
+          <ExportPresetSelector
+            selectedVariant={selectedVariant ? {
+              id: selectedVariant.id,
+              url: selectedVariant.url,
+              type: selectedVariant.type,
+            } : undefined}
+          />
         </>
       )}
 
       {/* Loading Project State */}
-      {!project && !error && (
+      {projectLoading && !error && (
         <div className="flex items-center justify-center py-12">
           <Loader2Icon className="h-6 w-6 animate-spin text-slate-400" />
         </div>
