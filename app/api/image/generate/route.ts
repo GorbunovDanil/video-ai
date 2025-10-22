@@ -15,12 +15,21 @@ import { generateImageWithGemini } from "@/lib/gemini";
 import prisma from "@/lib/prisma";
 import { getCdnUrl, getSignedAssetUrl, storeAsset } from "@/lib/storage";
 import { logUsageEvent } from "@/lib/usage";
+import { rateLimit } from "@/lib/rate-limit/middleware";
+import { RATE_LIMITS } from "@/lib/rate-limit";
+import { performAbuseChecks } from "@/lib/abuse-prevention";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate limiting check
+  const rateLimitResult = await rateLimit(request, RATE_LIMITS.IMAGE_GENERATION);
+  if (rateLimitResult.success !== true) {
+    return rateLimitResult; // Returns 429 response
   }
 
   const body = await request.json().catch(() => null);
@@ -40,6 +49,15 @@ export async function POST(request: Request) {
   }
 
   const userId = session.user.id;
+
+  // Abuse prevention checks
+  const abuseCheck = await performAbuseChecks(userId, prompt);
+  if (!abuseCheck.allowed) {
+    return NextResponse.json(
+      { error: abuseCheck.reason || "Request blocked" },
+      { status: 403 }
+    );
+  }
 
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId },
