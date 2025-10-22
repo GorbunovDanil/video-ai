@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import clsx from "clsx";
 import {
+  BarChart3Icon,
   GalleryVerticalEndIcon,
   ImageIcon,
   LogOutIcon,
@@ -18,6 +19,7 @@ const items = [
   { href: "/image-ad", label: "Image Ad", icon: ImageIcon },
   { href: "/video-ad", label: "Video Ad", icon: PlayIcon },
   { href: "/gallery", label: "Gallery", icon: GalleryVerticalEndIcon },
+  { href: "/analytics", label: "Analytics", icon: BarChart3Icon },
   { href: "/account", label: "Account", icon: SettingsIcon },
   { href: "/pricing", label: "Pricing", icon: TagsIcon },
 ];
