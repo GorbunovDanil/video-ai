@@ -81,8 +81,16 @@ export async function POST(request: NextRequest) {
     const s3Key = `assets/${session.user.id}/${projectId}/${uuidv4()}.${fileExtension}`;
 
     // Upload to S3
+    const bucket = process.env.ASSETS_BUCKET || process.env.AWS_S3_BUCKET;
+    if (!bucket) {
+      return NextResponse.json(
+        { error: "Storage not configured" },
+        { status: 500 }
+      );
+    }
+
     const uploadCommand = new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: bucket,
       Key: s3Key,
       Body: buffer,
       ContentType: file.type,
@@ -91,7 +99,14 @@ export async function POST(request: NextRequest) {
     await s3Client.send(uploadCommand);
 
     // Generate CDN URL
-    const cdnUrl = `https://${process.env.CLOUDFRONT_DOMAIN}/${s3Key}`;
+    const cdnBase = process.env.CLOUDFRONT_URL || process.env.CLOUDFRONT_DOMAIN;
+    if (!cdnBase) {
+      return NextResponse.json(
+        { error: "CDN not configured" },
+        { status: 500 }
+      );
+    }
+    const cdnUrl = `${cdnBase.replace(/\/$/, '')}/${s3Key}`;
 
     // Get image dimensions if it's an image
     let dimensions = null;

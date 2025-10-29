@@ -87,11 +87,14 @@ export async function DELETE(request: NextRequest) {
 
     // Delete from S3
     try {
-      const deleteCommand = new DeleteObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: asset.s3Key,
-      });
-      await s3Client.send(deleteCommand);
+      const bucket = process.env.ASSETS_BUCKET || process.env.AWS_S3_BUCKET;
+      if (bucket) {
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: bucket,
+          Key: asset.s3Key,
+        });
+        await s3Client.send(deleteCommand);
+      }
     } catch (s3Error) {
       console.error("S3 deletion error:", s3Error);
       // Continue even if S3 deletion fails
