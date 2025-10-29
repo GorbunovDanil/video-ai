@@ -2,8 +2,6 @@
 
 import { useState, useRef } from "react";
 import { Upload, X, Image as ImageIcon, Video, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface Asset {
   id: string;
@@ -121,7 +119,7 @@ export function FileUpload({
   };
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={`w-full ${className || ""}`}>
       <input
         ref={fileInputRef}
         type="file"
@@ -132,13 +130,11 @@ export function FileUpload({
       />
 
       <div
-        className={cn(
-          "relative border-2 border-dashed rounded-lg p-6 transition-colors",
+        className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
           dragActive
             ? "border-blue-500 bg-blue-50"
-            : "border-gray-300 hover:border-gray-400",
-          uploading && "opacity-50 pointer-events-none"
-        )}
+            : "border-gray-300 hover:border-gray-400"
+        } ${uploading ? "opacity-50 pointer-events-none" : ""}`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -234,7 +230,7 @@ export function AssetGallery({
   }
 
   return (
-    <div className={cn("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4", className)}>
+    <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 ${className || ""}`}>
       {assets.map((asset) => {
         const isSelected = selectedAssetIds.includes(asset.id);
         const isRemoving = removing === asset.id;
@@ -242,13 +238,11 @@ export function AssetGallery({
         return (
           <div
             key={asset.id}
-            className={cn(
-              "relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer",
+            className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
               isSelected
                 ? "border-blue-500 ring-2 ring-blue-200"
-                : "border-gray-200 hover:border-gray-300",
-              isRemoving && "opacity-50 pointer-events-none"
-            )}
+                : "border-gray-200 hover:border-gray-300"
+            } ${isRemoving ? "opacity-50 pointer-events-none" : ""}`}
             onClick={() => onSelect?.(asset)}
           >
             {/* Preview */}
