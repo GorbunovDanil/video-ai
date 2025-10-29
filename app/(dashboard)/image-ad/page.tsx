@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2Icon, SparklesIcon } from "lucide-react";
 
@@ -9,12 +9,23 @@ import { ExportPresetSelector } from "@/components/export-preset-selector";
 import { PromptTemplates, type PromptTemplate } from "@/components/prompt-templates";
 import { VariantGrid, type Variant } from "@/components/variant-grid";
 import { useProject } from "@/contexts/project-context";
+import { FileUpload, AssetGallery } from "@/components/assets/file-upload";
 
 type GeneratedImage = {
   renderId: string;
   signedUrl: string;
   cdnUrl: string;
   costInCredits: number;
+};
+
+type Asset = {
+  id: string;
+  fileName: string;
+  cdnUrl: string;
+  type: string;
+  fileSize: number;
+  width?: number;
+  height?: number;
 };
 
 export default function ImageAdPage() {
@@ -26,6 +37,50 @@ export default function ImageAdPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Fetch assets when project changes
+  useEffect(() => {
+    if (currentProject) {
+      fetchAssets();
+    }
+  }, [currentProject]);
+
+  const fetchAssets = async () => {
+    if (!currentProject) return;
+
+    try {
+      const response = await fetch(`/api/assets?projectId=${currentProject.id}&type=IMAGE`);
+      if (response.ok) {
+        const data = await response.json();
+        setAssets(data.assets);
+      }
+    } catch (error) {
+      console.error("Failed to fetch assets:", error);
+    }
+  };
+
+  const handleAssetUpload = (asset: Asset) => {
+    setAssets(prev => [asset, ...prev]);
+    setUploadError(null);
+  };
+
+  const handleAssetRemove = (assetId: string) => {
+    setAssets(prev => prev.filter(a => a.id !== assetId));
+    setSelectedAssetIds(prev => prev.filter(id => id !== assetId));
+  };
+
+  const handleAssetSelect = (asset: Asset) => {
+    setSelectedAssetIds(prev => {
+      if (prev.includes(asset.id)) {
+        return prev.filter(id => id !== asset.id);
+      } else {
+        return [...prev, asset.id];
+      }
+    });
+  };
 
   const handleGenerate = async () => {
     if (!currentProject || !selectedTemplate || !briefValues) {
@@ -37,8 +92,11 @@ export default function ImageAdPage() {
     setError(null);
 
     try {
+      // Get selected assets
+      const selectedAssets = assets.filter(a => selectedAssetIds.includes(a.id));
+
       // Build the prompt with brand context
-      const enhancedPrompt = `${selectedTemplate.prompt}
+      let enhancedPrompt = `${selectedTemplate.prompt}
 
 Brand Context:
 - Colors: ${briefValues.brandColors.join(", ")}
@@ -47,10 +105,18 @@ Brand Context:
 - Style: ${briefValues.style}
 - Format: ${briefValues.format}`;
 
-      // Prepare assets if any are provided
-      const assets = briefValues.assetReferences
-        .filter(ref => ref.trim() !== "")
-        .map(uri => ({ type: "image", uri }));
+      // Add asset context if assets are selected
+      if (selectedAssets.length > 0) {
+        enhancedPrompt += `\n\nReference Images:\n${selectedAssets.map(a => `- ${a.fileName}: ${a.cdnUrl}`).join("\n")}`;
+      }
+
+      // Prepare assets for API
+      const assetPayload = [
+        ...selectedAssets.map(a => ({ type: "image", uri: a.cdnUrl })),
+        ...briefValues.assetReferences
+          .filter(ref => ref.trim() !== "")
+          .map(uri => ({ type: "image", uri }))
+      ];
 
       const response = await fetch("/api/image/generate", {
         method: "POST",
@@ -63,7 +129,7 @@ Brand Context:
             secondaryColor: briefValues.brandColors[1],
             accentColor: briefValues.brandColors[2],
           },
-          assets: assets.length > 0 ? assets : undefined,
+          assets: assetPayload.length > 0 ? assetPayload : undefined,
         }),
       });
 
@@ -116,6 +182,49 @@ Brand Context:
           explore AI-assisted variants before exporting to every ad platform.
         </p>
       </header>
+
+      {/* Asset Upload Section */}
+      {currentProject && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Product Assets</h2>
+              <p className="text-sm text-slate-400">
+                Upload images to use as references in your ad generation
+                {selectedAssetIds.length > 0 && (
+                  <span className="ml-2 text-brand-400">
+                    ({selectedAssetIds.length} selected)
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <FileUpload
+            projectId={currentProject.id}
+            type="IMAGE"
+            accept="image/*"
+            maxSizeMB={10}
+            onUploadComplete={handleAssetUpload}
+            onUploadError={setUploadError}
+          />
+
+          {uploadError && (
+            <div className="rounded-lg border border-red-800 bg-red-900/20 p-3 text-sm text-red-200">
+              {uploadError}
+            </div>
+          )}
+
+          {assets.length > 0 && (
+            <AssetGallery
+              assets={assets}
+              onRemove={handleAssetRemove}
+              onSelect={handleAssetSelect}
+              selectedAssetIds={selectedAssetIds}
+            />
+          )}
+        </section>
+      )}
 
       <CreativeBriefForm onChange={setBriefValues} />
 
